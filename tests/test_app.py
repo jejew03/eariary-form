@@ -262,7 +262,7 @@ def test_app_enregistre_une_descente(app, classeur):
     _par_label(at.selectbox, "Catégorie").select("Épicerie").run()
     _par_label(at.selectbox, "Ville").select("Antananarivo").run()
     _par_label(at.text_input, "Téléphone").input("034 12 345 67").run()
-    _par_label(at.button, "✅ Enregistrer").click().run()
+    _par_label(at.button, "Enregistrer").click().run()
     assert not at.exception, at.exception
     assert not at.error, [e.value for e in at.error]
     feuille = classeur.worksheet("Journal")
@@ -281,7 +281,7 @@ def test_app_refuse_sans_position_en_descente(app, classeur):
     _par_label(at.selectbox, "Catégorie").select("Épicerie").run()
     _par_label(at.selectbox, "Ville").select("Antananarivo").run()
     _par_label(at.text_input, "Téléphone").input("034 12").run()
-    _par_label(at.button, "✅ Enregistrer").click().run()
+    _par_label(at.button, "Enregistrer").click().run()
     messages = " ".join(e.value for e in at.error)
     assert "position" in messages and "Téléphone invalide" in messages
     assert len(classeur.worksheet("Journal").ecritures) == 0
@@ -296,9 +296,9 @@ def test_app_doublon_demande_confirmation(app, classeur):
     _par_label(at.selectbox, "Ville").select("Antananarivo").run()
     _par_label(at.text_input, "Téléphone").input("034 11 111 11").run()
     assert any("déjà" in w.value for w in at.warning)
-    _par_label(at.button, "✅ Enregistrer").click().run()
+    _par_label(at.button, "Enregistrer").click().run()
     assert any("doublon" in e.value for e in at.error)
     assert len(classeur.worksheet("Journal").ecritures) == 0
     at.checkbox[0].check().run()
-    _par_label(at.button, "✅ Enregistrer").click().run()
+    _par_label(at.button, "Enregistrer").click().run()
     assert len(classeur.worksheet("Journal").ecritures) == 1

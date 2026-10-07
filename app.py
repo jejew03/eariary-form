@@ -43,7 +43,7 @@ ERREURS_GPS = {
     3: "Délai dépassé. Réessayez, le GPS met parfois quelques secondes à se fixer.",
 }
 
-st.set_page_config(page_title="Enrôlement eAriary", page_icon="📍", layout="centered")
+st.set_page_config(page_title="Enrôlement eAriary", layout="centered")
 
 
 # ------------------------------------------------------------ Google Sheet
@@ -98,7 +98,7 @@ def mesurer_position():
 
 # ------------------------------------------------------------ interface
 
-st.title("📍 Enrôlement marchand eAriary")
+st.title("Enrôlement marchand eAriary")
 
 try:
     L = listes()
@@ -120,7 +120,7 @@ if ss.derniere_saisie:
 
 # ---- Position GPS
 st.subheader("1. Position du marchand")
-st.button("📍 Capturer ma position", on_click=lancer_gps, type="primary", width="stretch")
+st.button("Capturer ma position", on_click=lancer_gps, type="primary", width="stretch")
 if ss.gps_essai and not ss.gps and not ss.gps_erreur:
     mesurer_position()
     if not ss.gps and not ss.gps_erreur:
@@ -228,7 +228,7 @@ if existants:
     st.checkbox("C'est bien un nouveau contact (relance ou autre marchand), enregistrer quand même",
                 key=f"doublon_ok_{k}")
 
-if st.button("✅ Enregistrer", type="primary", width="stretch"):
+if st.button("Enregistrer", type="primary", width="stretch"):
     if existants and not ss.get(f"doublon_ok_{k}"):
         erreurs.append("Cochez la case de confirmation du doublon pour enregistrer.")
     if erreurs:
