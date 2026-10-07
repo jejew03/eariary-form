@@ -1,0 +1,5 @@
+streamlit==1.65.0
+gspread==6.2.1
+google-auth==2.60.0
+pandas==3.0.2
+streamlit-js-eval==1.0.0
