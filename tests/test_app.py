@@ -4,6 +4,7 @@ Lancement : python -m pytest -q tests
 """
 from __future__ import annotations
 
+import io
 import sys
 from datetime import date
 from pathlib import Path
@@ -14,6 +15,7 @@ import pytest
 RACINE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(RACINE))
 
+import photos  # noqa: E402
 import sheets  # noqa: E402
 from sheets import Saisie  # noqa: E402
 
@@ -53,13 +55,14 @@ class FausseFeuille:
     def update(self, range_name, values, value_input_option):
         assert value_input_option == "USER_ENTERED"
         r = int("".join(ch for ch in range_name.split(":")[0] if ch.isdigit()))
-        assert range_name == f"A{r}:O{r}", "on n'écrit jamais au-delà de la colonne O"
+        assert range_name in (f"A{r}:O{r}", f"Q{r}:R{r}"), "on n'écrit jamais dans la colonne P"
         while len(self.valeurs) < r:
             self.valeurs.append([])
-        ligne = (self.valeurs[r - 1] + [""] * 16)[:16]
+        ligne = (self.valeurs[r - 1] + [""] * 18)[:18]
+        debut = ord(range_name[0]) - ord("A")
         for i, v in enumerate(values[0]):
             v = str(v)
-            ligne[i] = v[1:] if v.startswith("'") else v
+            ligne[debut + i] = v[1:] if v.startswith("'") else v
         self.valeurs[r - 1] = ligne
         self.ecritures.append((r, values[0]))
 
@@ -188,6 +191,83 @@ def test_ecriture_sans_gps(classeur):
     assert classeur.worksheet("Journal").valeurs[n - 1][12:14] == ["", ""]
 
 
+def test_ecriture_liens_photos(classeur):
+    n = sheets.ajouter(classeur, saisie(photo_devanture="https://drive/d", photo_produits="https://drive/p"))
+    feuille = classeur.worksheet("Journal")
+    assert feuille.valeurs[n - 1][15:18] == ["", "https://drive/d", "https://drive/p"]
+    assert [r for r, _ in feuille.ecritures] == [n, n]
+
+
+def test_pas_d_ecriture_photos_sans_photo(classeur):
+    sheets.ajouter(classeur, saisie())
+    assert len(classeur.worksheet("Journal").ecritures) == 1
+
+
+# ------------------------------------------------------------ photos
+
+def _jpeg(largeur, hauteur, orientation=None):
+    from PIL import Image
+
+    img = Image.new("RGB", (largeur, hauteur), "red")
+    buf = io.BytesIO()
+    exif = Image.Exif()
+    if orientation:
+        exif[0x0112] = orientation
+    img.save(buf, "JPEG", exif=exif)
+    return buf.getvalue()
+
+
+def test_compression_et_orientation():
+    from PIL import Image
+
+    # photo portrait prise téléphone couché : EXIF orientation 6 (rotation 90°)
+    sortie = Image.open(io.BytesIO(photos.compresser(_jpeg(4000, 3000, orientation=6))))
+    assert sortie.format == "JPEG"
+    assert sortie.size == (1200, 1600)
+    petite = Image.open(io.BytesIO(photos.compresser(_jpeg(800, 600))))
+    assert petite.size == (800, 600), "pas d'agrandissement"
+
+
+def test_nom_fichier():
+    assert photos.nom_fichier(saisie(marchand="Épicerie d'Ankorondrano!"), "devanture") == \
+        "2026-10-07_epicerie-d-ankorondrano_antananarivo_devanture.jpg"
+
+
+def test_envoi_script_google():
+    import base64
+
+    post = mock.Mock()
+    post.return_value.json.return_value = {"ok": True, "url": "https://drive.google.com/x"}
+    lien = photos.envoyer("https://script/exec", "SECRET", "a.jpg", b"\xff\xd8donnees", post=post)
+    assert lien == "https://drive.google.com/x"
+    url, = post.call_args.args
+    corps = post.call_args.kwargs["json"]
+    assert url == "https://script/exec"
+    assert corps["secret"] == "SECRET" and corps["nom"] == "a.jpg"
+    assert base64.b64decode(corps["data"]) == b"\xff\xd8donnees"
+
+
+def test_envoi_refuse_par_le_script():
+    post = mock.Mock()
+    post.return_value.json.return_value = {"ok": False, "erreur": "Accès refusé"}
+    with pytest.raises(RuntimeError, match="Accès refusé"):
+        photos.envoyer("https://script/exec", "MAUVAIS", "a.jpg", b"x", post=post)
+
+
+def test_envoi_script_acces_restreint():
+    post = mock.Mock()
+    post.return_value.status_code = 401
+    with pytest.raises(RuntimeError, match="Tout le monde"):
+        photos.envoyer("https://script/exec", "S", "a.jpg", b"x", post=post)
+
+
+def test_envoi_script_non_publie():
+    post = mock.Mock()
+    post.return_value.json.side_effect = ValueError("pas du JSON")
+    with pytest.raises(RuntimeError, match="publication"):
+        photos.envoyer("https://script/exec", "S", "a.jpg", b"x", post=post)
+
+
 def test_ajoute_des_lignes_si_feuille_pleine():
     f = FausseFeuille(journal_exemple(), row_count=5)
     c = FauxClasseur({"Journal": f, "Listes": FausseFeuille(LISTES)})
@@ -253,52 +333,42 @@ def _par_label(widgets, label):
     return next(w for w in widgets if w.label.startswith(label))
 
 
-def test_app_enregistre_une_descente(app, classeur):
+def test_app_enregistre_nom_et_position(app, classeur):
     at = app
     _par_label(at.selectbox, "Agent").select("Aina").run()
+    assert [w.label for w in at.text_input] == ["Nom du marchand *"], "seul champ texte restant"
+    _par_label(at.text_input, "Nom du marchand").input("Épicerie Fanja").run()
     at.button[0].click().run()                       # Capturer ma position
     assert any("47.525359" in m.value for m in at.metric)
-    _par_label(at.text_input, "Nom du marchand").input("Épicerie Fanja").run()
-    _par_label(at.selectbox, "Catégorie").select("Épicerie").run()
-    _par_label(at.selectbox, "Ville").select("Antananarivo").run()
-    _par_label(at.text_input, "Téléphone").input("034 12 345 67").run()
+    assert any(c.value == "-18.907597, 47.525359" for c in at.code), "coordonnées copiables"
     _par_label(at.button, "Enregistrer").click().run()
     assert not at.exception, at.exception
     assert not at.error, [e.value for e in at.error]
     feuille = classeur.worksheet("Journal")
     ligne = feuille.valeurs[5]
     assert ligne[1:4] == ["Aina", "Descente", "Épicerie Fanja"]
+    assert ligne[4:9] == [""] * 5, "catégorie, ville, téléphone, contact, email laissés vides"
+    assert ligne[9] == "Accepté", "compté comme enrôlé dans le tableau de bord"
+    assert ligne[10:12] == ["", ""]
     assert ligne[12:15] == ["-18.907597", "47.525359", "Streamlit"]
     assert any("enregistré" in s.value for s in at.success)
     # formulaire vidé après l'enregistrement
     assert _par_label(at.text_input, "Nom du marchand").value == ""
 
 
-def test_app_refuse_sans_position_en_descente(app, classeur):
+def test_app_refuse_sans_position(app, classeur):
     at = app
     _par_label(at.selectbox, "Agent").select("Aina").run()
     _par_label(at.text_input, "Nom du marchand").input("Épicerie Fanja").run()
-    _par_label(at.selectbox, "Catégorie").select("Épicerie").run()
-    _par_label(at.selectbox, "Ville").select("Antananarivo").run()
-    _par_label(at.text_input, "Téléphone").input("034 12").run()
     _par_label(at.button, "Enregistrer").click().run()
-    messages = " ".join(e.value for e in at.error)
-    assert "position" in messages and "Téléphone invalide" in messages
+    assert any("position" in e.value for e in at.error)
     assert len(classeur.worksheet("Journal").ecritures) == 0
 
 
-def test_app_doublon_demande_confirmation(app, classeur):
+def test_app_refuse_sans_nom(app, classeur):
     at = app
     _par_label(at.selectbox, "Agent").select("Aina").run()
     at.button[0].click().run()
-    _par_label(at.text_input, "Nom du marchand").input("Boutique Soa").run()
-    _par_label(at.selectbox, "Catégorie").select("Épicerie").run()
-    _par_label(at.selectbox, "Ville").select("Antananarivo").run()
-    _par_label(at.text_input, "Téléphone").input("034 11 111 11").run()
-    assert any("déjà" in w.value for w in at.warning)
     _par_label(at.button, "Enregistrer").click().run()
-    assert any("doublon" in e.value for e in at.error)
+    assert any("nom du marchand" in e.value for e in at.error)
     assert len(classeur.worksheet("Journal").ecritures) == 0
-    at.checkbox[0].check().run()
-    _par_label(at.button, "Enregistrer").click().run()
-    assert len(classeur.worksheet("Journal").ecritures) == 1

@@ -1,4 +1,4 @@
-"""Accès au Google Sheet « Compte rendu _ Appel » (onglets Journal et Listes).
+"""Accès au Google Sheet « Onboarding marchand » (onglets Journal et Listes).
 
 Ce module ne dépend pas de Streamlit : il est testable avec un faux classeur.
 """
@@ -18,6 +18,8 @@ COLONNES = [
     "Responsable / contact", "Email", "Résultat", "Date de rappel",
     "Commentaire", "Latitude", "Longitude", "Origine",
 ]
+# Colonnes Q et R : liens Drive des photos (après la colonne P calculée)
+COLONNES_PHOTOS = ["Photo devanture", "Photo produits"]
 
 # Emprise de Madagascar, pour détecter une position aberrante
 LAT_MIN, LAT_MAX = -25.7, -11.9
@@ -39,9 +41,9 @@ class Saisie:
     agent: str
     canal: str
     marchand: str
-    categorie: str
-    ville: str
-    telephone: str
+    categorie: str = ""
+    ville: str = ""
+    telephone: str = ""
     responsable: str = ""
     email: str = ""
     resultat: str = "Accepté"
@@ -49,6 +51,8 @@ class Saisie:
     commentaire: str = ""
     latitude: float | None = None
     longitude: float | None = None
+    photo_devanture: str = ""     # lien Google Drive
+    photo_produits: str = ""
 
     def identifiant(self) -> str:
         """Même clé que la colonne P du Journal : « marchand | ville » en minuscules."""
@@ -180,7 +184,7 @@ def _premiere_ligne_libre(feuille) -> int:
 
 
 def ajouter(classeur, saisie: Saisie, tentatives: int = 3) -> int:
-    """Écrit la saisie dans le Journal (A:O) et renvoie le numéro de ligne."""
+    """Écrit la saisie dans le Journal (A:O, puis Q:R pour les photos) et renvoie le numéro de ligne."""
     feuille = classeur.worksheet(JOURNAL)
     ligne = saisie.en_ligne()
     for _ in range(tentatives):
@@ -192,5 +196,9 @@ def ajouter(classeur, saisie: Saisie, tentatives: int = 3) -> int:
         relu = feuille.get(f"A{n}:O{n}")
         relu = (relu[0] if relu else []) + [""] * 15
         if relu[1] == saisie.agent and relu[3].strip() == saisie.marchand.strip():
+            if saisie.photo_devanture or saisie.photo_produits:
+                feuille.update(range_name=f"Q{n}:R{n}",
+                               values=[[saisie.photo_devanture, saisie.photo_produits]],
+                               value_input_option="USER_ENTERED")
             return n
     raise RuntimeError("Écriture non confirmée après plusieurs tentatives, réessayez.")

@@ -1,22 +1,28 @@
 # Formulaire d'enrôlement eAriary (Streamlit)
 
 Formulaire mobile pour les agents de terrain. Chaque enregistrement ajoute une ligne
-dans l'onglet **Journal** du Google Sheet « Compte rendu _ Appel ». Le tableau de bord,
+dans l'onglet **Journal** du Google Sheet « Onboarding marchand ». Le tableau de bord,
 l'onglet Marchands et l'onglet À relancer se mettent à jour tout seuls.
 
 ## Ce que fait l'application
 
+L'agent saisit uniquement **le nom du marchand**, **sa position** et **deux photos**.
+La ligne du Journal reçoit la date du jour, l'agent, le canal `Descente`, le nom, la latitude,
+la longitude, le résultat `Accepté` (pour être compté dans le tableau de bord) et les liens
+des photos ; les autres colonnes (catégorie, ville, téléphone…) restent vides.
+
 - **Position GPS automatique** : le bouton « Capturer ma position » lit le GPS du téléphone
   (haute précision) et affiche la latitude, la longitude, la précision en mètres et une carte.
   Une position hors de Madagascar (signe oublié, coordonnées inversées) est refusée.
-  Saisie manuelle possible en secours.
-- **Listes déroulantes** lues dans l'onglet Listes du Sheet (agents, catégories, villes, résultats).
-  Ajouter une ville ou un agent dans le Sheet suffit : l'application le reprend sous 10 minutes.
-- **Contrôles avant écriture** : champs obligatoires, téléphone à 9 chiffres (mis au format
-  `+261 34 12 345 67`), email, position obligatoire en descente.
-- **Détection des doublons** : même marchand dans la même ville ou même numéro. L'agent voit
-  les lignes existantes et doit confirmer s'il s'agit d'une relance.
-- **Écriture sûre** : colonnes A à O uniquement (jamais la colonne P calculée), après la dernière
+  Saisie manuelle possible en secours. Les coordonnées s'affichent dans un cadre avec un bouton
+  de copie (`-18.907597, 47.525359`, format accepté par Google Maps).
+- **Photos** : une photo de la devanture et une photo des produits, prises avec l'appareil photo
+  du téléphone (ou choisies dans la galerie). Elles sont redressées, réduites à 1600 px, envoyées
+  dans un dossier Google Drive, et leurs liens sont écrits en colonnes Q et R du Journal.
+- **Liste des agents** lue dans l'onglet Listes du Sheet. Ajouter un agent dans le Sheet suffit :
+  l'application le reprend sous 10 minutes.
+- **Contrôles avant écriture** : nom du marchand et position obligatoires ; photos facultatives.
+- **Écriture sûre** : colonnes A à O et Q à R (jamais la colonne P calculée), après la dernière
   ligne remplie (même s'il y a des lignes vides au milieu), avec relecture pour éviter que deux
   agents écrasent la même ligne. Colonne Origine = `Streamlit`.
 - **Récapitulatif du jour** de l'agent en bas de page.
@@ -36,8 +42,33 @@ l'onglet Marchands et l'onglet À relancer se mettent à jour tout seuls.
 
 ### 2. Partager le Google Sheet avec ce compte
 
-Dans le Sheet : *Partager*, coller l'adresse `client_email` du fichier JSON
-(`...@...iam.gserviceaccount.com`), rôle **Éditeur**, décocher « Envoyer une notification ».
+Depuis le compte propriétaire du Sheet (`onboardingmarchand@gmail.com`) : *Partager*, coller
+l'adresse `client_email` du fichier JSON (`...@...iam.gserviceaccount.com`), rôle **Éditeur**,
+décocher « Envoyer une notification ». Dans *Accès général*, choisir **Restreint**.
+
+### 2 bis. Photos (script Google)
+
+Le compte propriétaire est un Gmail personnel, sans Drive partagé : un compte de service ne peut
+pas y déposer de fichiers. Les photos passent donc par un petit script qui tourne avec les droits
+du propriétaire et les range dans son Drive, dossier `eAriary - Photos enrôlement`.
+
+1. Connecté en `onboardingmarchand@gmail.com`, ouvrir https://script.google.com > *Nouveau projet*,
+   le nommer `eAriary photos`, remplacer le contenu par celui de `apps_script/Code.gs`, enregistrer.
+2. *Paramètres du projet* (roue dentée) > *Propriétés du script* > ajouter `SECRET` avec la valeur
+   de `photos_secret` (une longue chaîne aléatoire, la même dans les deux endroits).
+3. Dans l'éditeur, choisir la fonction `initialiser` puis *Exécuter* et accepter les autorisations
+   (« Google n'a pas validé cette application » : *Paramètres avancés > Accéder à eAriary photos*).
+   Le dossier est créé dans le Drive.
+4. *Déployer > Nouveau déploiement* > type **Application Web** ; *Exécuter en tant que* : **Moi** ;
+   *Qui a accès* : **Tout le monde**. Copier l'URL qui finit par `/exec` dans `photos_url`.
+5. Après une modification du script : *Déployer > Gérer les déploiements > Modifier > Nouvelle version*
+   (l'URL reste la même).
+
+« Tout le monde » est nécessaire pour que l'application puisse appeler le script ; le `SECRET`
+empêche quiconque d'autre d'y déposer des fichiers. Les photos restent privées : pour que d'autres
+personnes ouvrent les liens du Journal, partager le dossier avec elles dans Drive.
+
+Sans `photos_url` / `photos_secret`, l'application fonctionne mais les champs photo sont désactivés.
 
 ### 3. Renseigner les secrets
 
@@ -62,14 +93,14 @@ email des agents.
 ```bash
 pip install -r requirements-dev.txt
 streamlit run app.py          # http://localhost:8501 (la géolocalisation marche sur localhost)
-python -m pytest -q tests     # 20 tests, sans connexion à Google
+python -m pytest -q tests     # 27 tests, sans connexion à Google
 ```
 
 ## Côté agent
 
 1. Ouvrir le lien sur le téléphone, choisir son nom (une seule fois si le lien est mis en favori).
 2. Devant le commerce : **Capturer ma position**, autoriser la localisation la première fois.
-3. Remplir le marchand, le téléphone, le résultat, puis **Enregistrer**.
+3. Saisir le nom du marchand, prendre les photos (devanture, produits), puis **Enregistrer**.
 
 Si le navigateur a refusé la localisation : icône cadenas à gauche de l'adresse >
 Autorisations > Position > Autoriser, puis recharger la page.
@@ -80,5 +111,7 @@ Autorisations > Position > Autoriser, puis recharger la page.
 |---|---|
 | `app.py` | Interface Streamlit |
 | `sheets.py` | Lecture des listes, contrôles, écriture dans le Journal |
+| `photos.py` | Compression des photos et envoi au script Google |
+| `apps_script/Code.gs` | Script Google qui range les photos dans le Drive du propriétaire |
 | `tests/test_app.py` | Tests sur un faux Google Sheet (écriture, doublons, GPS, interface) |
 | `.streamlit/secrets.toml.example` | Modèle des secrets |

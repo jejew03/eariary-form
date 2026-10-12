@@ -1,6 +1,6 @@
 """Formulaire d'enrôlement marchand eAriary.
 
-Alimente l'onglet « Journal » du Google Sheet « Compte rendu _ Appel ».
+Alimente l'onglet « Journal » du Google Sheet « Onboarding marchand ».
 Les coordonnées GPS sont prises automatiquement depuis le téléphone de l'agent.
 Lancement local : streamlit run app.py
 """
@@ -14,6 +14,7 @@ import pandas as pd
 import streamlit as st
 from google.oauth2.service_account import Credentials
 
+import photos
 import sheets
 from sheets import Saisie
 
@@ -54,6 +55,12 @@ def classeur():
     return gspread.authorize(creds).open_by_key(st.secrets["sheet_id"])
 
 
+def envoyer_photo(fichier, saisie: Saisie, type_photo: str) -> str:
+    """Compresse la photo et l'envoie au script Google ; renvoie le lien Drive."""
+    return photos.envoyer(st.secrets["photos_url"], st.secrets["photos_secret"],
+                          photos.nom_fichier(saisie, type_photo), photos.compresser(fichier.getvalue()))
+
+
 @st.cache_data(ttl=600, show_spinner=False)
 def listes() -> sheets.Listes:
     return sheets.lire_listes(classeur())
@@ -72,7 +79,6 @@ ss.setdefault("gps", None)           # dernière position valide {lat, lon, prec
 ss.setdefault("gps_erreur", None)
 ss.setdefault("form_id", 0)          # change les clés des champs pour vider le formulaire
 ss.setdefault("derniere_saisie", None)
-ss.setdefault("confirmer_doublon", False)
 
 
 def lancer_gps():
@@ -118,8 +124,16 @@ if ss.derniere_saisie:
     st.success(ss.derniere_saisie)
     ss.derniere_saisie = None
 
+k = ss.form_id
+aujourd_hui = datetime.now(TZ).date()
+
+# ---- Marchand
+st.subheader("1. Marchand")
+marchand = st.text_input("Nom du marchand *", key=f"marchand_{k}",
+                         help="Nom de l'enseigne, ou NOM Prénom pour un vendeur sans enseigne.")
+
 # ---- Position GPS
-st.subheader("1. Position du marchand")
+st.subheader("2. Position du marchand")
 st.button("Capturer ma position", on_click=lancer_gps, type="primary", width="stretch")
 if ss.gps_essai and not ss.gps and not ss.gps_erreur:
     mesurer_position()
@@ -131,7 +145,7 @@ lat = lon = None
 precision = None
 if saisie_manuelle:
     texte = st.text_input("Coordonnées (latitude, longitude)", placeholder="-18.907597, 47.525359",
-                          key=f"coord_{ss.form_id}")
+                          key=f"coord_{k}")
     coords = sheets.lire_coordonnees(texte)
     if texte and not coords:
         st.warning("Format attendu : latitude, longitude (exemple : -18.907597, 47.525359)")
@@ -152,39 +166,27 @@ if lat is not None:
         st.warning("Cette position est hors de Madagascar. Vérifiez le signe de la latitude (elle doit être négative).")
     elif precision and precision > PRECISION_MAX:
         st.warning(f"Position imprécise (± {precision:.0f} m). Activez le GPS et recapturez si possible.")
+    st.caption("Coordonnées à copier (bouton de copie à droite du cadre) :")
+    st.code(f"{lat:.6f}, {lon:.6f}", language=None)
     st.map(pd.DataFrame({"lat": [lat], "lon": [lon]}), zoom=16, size=8)
 elif not ss.gps_erreur:
-    st.caption("Appuyez sur le bouton devant le commerce du marchand. La position est facultative pour un appel.")
+    st.caption("Appuyez sur le bouton devant le commerce du marchand.")
 
-# ---- Informations
-st.subheader("2. Marchand")
-k = ss.form_id
-aujourd_hui = datetime.now(TZ).date()
-
+# ---- Photos
+st.subheader("3. Photos")
+photos_actives = "photos_url" in st.secrets and "photos_secret" in st.secrets
+if not photos_actives:
+    st.caption("Envoi des photos non configuré (photos_url / photos_secret absents des secrets).")
+AIDE_PHOTO = "Sur le téléphone, choisissez « Appareil photo » pour prendre la photo maintenant."
 col1, col2 = st.columns(2)
-date_contact = col1.date_input("Date", value=aujourd_hui, max_value=aujourd_hui, format="DD/MM/YYYY", key=f"date_{k}")
-canal = col2.radio("Canal", L.canaux, index=L.canaux.index("Descente") if "Descente" in L.canaux else 0,
-                   horizontal=True, key=f"canal_{k}")
-marchand = st.text_input("Nom du marchand *", key=f"marchand_{k}",
-                         help="Nom de l'enseigne, ou NOM Prénom pour un vendeur sans enseigne.")
-col1, col2 = st.columns(2)
-categorie = col1.selectbox("Catégorie *", L.categories, index=None, placeholder="Choisir", key=f"cat_{k}")
-ville_choix = col2.selectbox("Ville *", L.villes + ["Autre…"], index=None, placeholder="Choisir", key=f"ville_{k}")
-ville = ville_choix
-if ville_choix == "Autre…":
-    ville = st.text_input("Nom de la ville *", key=f"ville_autre_{k}")
-telephone = st.text_input("Téléphone *", placeholder="034 12 345 67", key=f"tel_{k}")
-col1, col2 = st.columns(2)
-responsable = col1.text_input("Responsable / contact", key=f"resp_{k}")
-email = col2.text_input("Email", key=f"email_{k}")
-
-st.subheader("3. Résultat")
-resultat = st.radio("Résultat *", L.resultats, index=0, horizontal=True, key=f"res_{k}")
-date_rappel = None
-if resultat in ("À relancer", "Injoignable"):
-    date_rappel = st.date_input("Date de rappel", value=None, min_value=aujourd_hui,
-                                format="DD/MM/YYYY", key=f"rappel_{k}")
-commentaire = st.text_area("Commentaire", key=f"comm_{k}", height=80)
+photo_devanture = col1.file_uploader("Photo de la devanture", type=["jpg", "jpeg", "png", "webp"],
+                                     key=f"photo_dev_{k}", help=AIDE_PHOTO, disabled=not photos_actives)
+photo_produits = col2.file_uploader("Photo des produits", type=["jpg", "jpeg", "png", "webp"],
+                                    key=f"photo_prod_{k}", help=AIDE_PHOTO, disabled=not photos_actives)
+if photo_devanture:
+    col1.image(photo_devanture, width="stretch")
+if photo_produits:
+    col2.image(photo_produits, width="stretch")
 
 # ---- Contrôles
 erreurs = []
@@ -192,49 +194,31 @@ if not agent:
     erreurs.append("Choisissez votre nom d'agent en haut de la page.")
 if not marchand.strip():
     erreurs.append("Le nom du marchand est obligatoire.")
-if not categorie:
-    erreurs.append("Choisissez une catégorie.")
-if not (ville or "").strip():
-    erreurs.append("Choisissez une ville.")
-if not sheets.telephone_valide(telephone):
-    erreurs.append("Téléphone invalide : il faut 9 chiffres après 0 ou +261 (exemple : 034 12 345 67).")
-if not sheets.email_valide(email):
-    erreurs.append("Adresse email invalide.")
-if canal == "Descente" and lat is None:
-    erreurs.append("En descente, capturez la position du marchand avant d'enregistrer.")
-if lat is not None and not sheets.position_plausible(lat, lon):
+if lat is None:
+    erreurs.append("Capturez la position du marchand avant d'enregistrer.")
+elif not sheets.position_plausible(lat, lon):
     erreurs.append("La position est hors de Madagascar : corrigez-la avant d'enregistrer.")
 
-saisie = Saisie(
-    date=date_contact, agent=agent or "", canal=canal, marchand=marchand, categorie=categorie or "",
-    ville=ville or "", telephone=telephone, responsable=responsable, email=email, resultat=resultat,
-    date_rappel=date_rappel, commentaire=commentaire, latitude=lat, longitude=lon,
-)
-
-existants = []
-if marchand.strip() and (ville or "").strip() or sheets.telephone_valide(telephone):
-    try:
-        existants = sheets.doublons(journal(), saisie)
-    except Exception:
-        existants = []
-if existants:
-    acceptes = [l for l in existants if l[9] == "Accepté"]
-    msg = (f"Ce marchand ou ce numéro figure déjà {len(existants)} fois dans le Journal"
-           + (f", dont {len(acceptes)} fois « Accepté »" if acceptes else "") + ".")
-    st.warning(msg)
-    st.dataframe(pd.DataFrame([[l[0], l[1], l[3], l[5], l[6], l[9]] for l in existants],
-                              columns=["Date", "Agent", "Marchand", "Ville", "Téléphone", "Résultat"]),
-                 hide_index=True, width="stretch")
-    st.checkbox("C'est bien un nouveau contact (relance ou autre marchand), enregistrer quand même",
-                key=f"doublon_ok_{k}")
+# Chaque enregistrement est un enrôlement fait sur place : « Accepté » le compte dans le tableau de bord
+saisie = Saisie(date=aujourd_hui, agent=agent or "", canal="Descente", marchand=marchand,
+                resultat="Accepté", latitude=lat, longitude=lon)
 
 if st.button("Enregistrer", type="primary", width="stretch"):
-    if existants and not ss.get(f"doublon_ok_{k}"):
-        erreurs.append("Cochez la case de confirmation du doublon pour enregistrer.")
     if erreurs:
         for e in erreurs:
             st.error(e)
     else:
+        if photo_devanture or photo_produits:
+            with st.spinner("Envoi des photos…"):
+                try:
+                    if photo_devanture:
+                        saisie.photo_devanture = envoyer_photo(photo_devanture, saisie, "devanture")
+                    if photo_produits:
+                        saisie.photo_produits = envoyer_photo(photo_produits, saisie, "produits")
+                except Exception as e:
+                    st.error(f"L'envoi des photos a échoué, rien n'a été écrit dans le Journal. "
+                             f"Réessayez.\n\nDétail : {e}")
+                    st.stop()
         with st.spinner("Enregistrement dans le Google Sheet…"):
             try:
                 ligne = sheets.ajouter(classeur(), saisie)
@@ -242,8 +226,7 @@ if st.button("Enregistrer", type="primary", width="stretch"):
                 st.error(f"L'enregistrement a échoué, rien n'a été écrit. Réessayez.\n\nDétail : {e}")
                 st.stop()
         journal.clear()
-        ss.derniere_saisie = (f"{saisie.marchand.strip()} enregistré ({saisie.resultat}) "
-                              f"à la ligne {ligne} du Journal.")
+        ss.derniere_saisie = f"{saisie.marchand.strip()} enregistré à la ligne {ligne} du Journal."
         ss.form_id += 1          # vide le formulaire
         ss.gps = None
         ss.gps_essai = 0
@@ -256,9 +239,8 @@ if agent:
         lignes = [l for l in journal() if l[1] == agent and l[0] == aujourd_hui.strftime("%d/%m/%Y")]
     except Exception:
         lignes = []
-    acceptes = sum(1 for l in lignes if l[9] == "Accepté")
-    st.subheader(f"Mes saisies du jour : {len(lignes)} contact(s), {acceptes} accepté(s)")
+    st.subheader(f"Mes saisies du jour : {len(lignes)} marchand(s)")
     if lignes:
-        st.dataframe(pd.DataFrame([[l[3], l[4], l[5], l[9]] for l in lignes][::-1],
-                                  columns=["Marchand", "Catégorie", "Ville", "Résultat"]),
+        st.dataframe(pd.DataFrame([[l[3], l[12], l[13]] for l in lignes][::-1],
+                                  columns=["Marchand", "Latitude", "Longitude"]),
                      hide_index=True, width="stretch")
