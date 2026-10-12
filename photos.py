@@ -38,6 +38,18 @@ def nom_fichier(saisie, type_photo: str) -> str:
     return f"{saisie.date:%Y-%m-%d}_{_slug(saisie.marchand)}_{_slug(saisie.ville)}_{type_photo}.jpg"
 
 
+def rafraichir_formulaire(url: str, secret: str, post=requests.post) -> bool:
+    """Demande au script Google de recharger tout de suite le formulaire des détails.
+
+    Sans conséquence si ça échoue : le script recharge de toute façon toutes les 10 minutes.
+    """
+    try:
+        rep = post(url, json={"secret": secret, "action": "maj"}, timeout=60)
+        return bool(rep.json().get("ok"))
+    except Exception:
+        return False
+
+
 def envoyer(url: str, secret: str, nom: str, contenu: bytes, post=requests.post) -> str:
     """Envoie un JPEG au script Google et renvoie le lien Drive de la photo."""
     rep = post(url, json={"secret": secret, "nom": nom, "data": base64.b64encode(contenu).decode()},

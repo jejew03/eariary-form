@@ -6,6 +6,7 @@ Lancement local : streamlit run app.py
 """
 from __future__ import annotations
 
+import threading
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -226,6 +227,9 @@ if st.button("Enregistrer", type="primary", width="stretch"):
                 st.error(f"L'enregistrement a échoué, rien n'a été écrit. Réessayez.\n\nDétail : {e}")
                 st.stop()
         journal.clear()
+        if photos_actives:   # le marchand apparaît tout de suite dans le formulaire des détails
+            threading.Thread(target=photos.rafraichir_formulaire, daemon=True,
+                             args=(st.secrets["photos_url"], st.secrets["photos_secret"])).start()
         ss.derniere_saisie = f"{saisie.marchand.strip()} enregistré à la ligne {ligne} du Journal."
         ss.form_id += 1          # vide le formulaire
         ss.gps = None

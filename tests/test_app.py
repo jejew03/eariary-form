@@ -247,6 +247,15 @@ def test_envoi_script_google():
     assert base64.b64decode(corps["data"]) == b"\xff\xd8donnees"
 
 
+def test_rafraichir_formulaire():
+    post = mock.Mock()
+    post.return_value.json.return_value = {"ok": True}
+    assert photos.rafraichir_formulaire("https://script/exec", "S", post=post)
+    assert post.call_args.kwargs["json"] == {"secret": "S", "action": "maj"}
+    post.side_effect = OSError("réseau coupé")
+    assert photos.rafraichir_formulaire("https://script/exec", "S", post=post) is False
+
+
 def test_envoi_refuse_par_le_script():
     post = mock.Mock()
     post.return_value.json.return_value = {"ok": False, "erreur": "Accès refusé"}

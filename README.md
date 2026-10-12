@@ -70,6 +70,33 @@ personnes ouvrent les liens du Journal, partager le dossier avec elles dans Driv
 
 Sans `photos_url` / `photos_secret`, l'application fonctionne mais les champs photo sont désactivés.
 
+### 2 ter. Formulaire des détails des marchands (facultatif)
+
+L'application ne demande que le nom, la position et les photos. Le formulaire Google
+« eAriary - Détails des marchands » permet de compléter ensuite la catégorie, la ville, le
+téléphone, le contact, l'email et un commentaire. Il **met à jour la ligne existante** du
+Journal (aucune ligne ajoutée) : le marchand reste compté une fois, les stats ne changent pas.
+Parcours : on choisit d'abord l'**agent** (avec le nombre de fiches à compléter), puis l'un de
+**ses** marchands enregistrés avec l'application dont la ville est vide, puis les détails.
+Les agents viennent de l'onglet Listes (sans les « Équipe … »). Les listes se rechargent
+**immédiatement** après chaque enregistrement dans l'application (l'application appelle le script,
+action `maj`) et après chaque réponse au formulaire ; un rechargement toutes les 10 minutes
+rattrape un éventuel appel manqué.
+
+1. Dans le projet `eAriary photos` : *+ (Ajouter un fichier) > Script*, le nommer `Formulaire`,
+   coller le contenu de `apps_script/Formulaire.gs`, enregistrer.
+2. *Paramètres du projet > Propriétés du script* : ajouter `SHEET_ID` avec l'identifiant du
+   Google Sheet (la partie de l'adresse entre `/d/` et `/edit`).
+3. Choisir la fonction `creerFormulaire`, *Exécuter*, accepter les nouvelles autorisations.
+4. Le journal d'exécution affiche le **lien à envoyer** aux personnes qui complètent les fiches,
+   et le lien pour modifier le formulaire. Le formulaire est dans le Drive du propriétaire.
+
+Après une modification de `Formulaire.gs` ou `Code.gs` : recoller le fichier, exécuter `majListes`
+une fois, puis *Déployer > Gérer les déploiements > Modifier > Version : Nouvelle version > Déployer*
+(sinon l'application web garde l'ancien code ; l'URL ne change pas).
+
+Pas besoin de redéployer l'application web des photos : elle n'est pas concernée.
+
 ### 3. Renseigner les secrets
 
 Copier `.streamlit/secrets.toml.example` en `.streamlit/secrets.toml` et recopier les valeurs
@@ -113,5 +140,6 @@ Autorisations > Position > Autoriser, puis recharger la page.
 | `sheets.py` | Lecture des listes, contrôles, écriture dans le Journal |
 | `photos.py` | Compression des photos et envoi au script Google |
 | `apps_script/Code.gs` | Script Google qui range les photos dans le Drive du propriétaire |
+| `apps_script/Formulaire.gs` | Formulaire Google pour compléter les détails des marchands |
 | `tests/test_app.py` | Tests sur un faux Google Sheet (écriture, doublons, GPS, interface) |
 | `.streamlit/secrets.toml.example` | Modèle des secrets |

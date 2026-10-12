@@ -1,5 +1,6 @@
 /**
- * Réception des photos de l'application d'enrôlement eAriary.
+ * Réception des photos de l'application d'enrôlement eAriary, et rechargement immédiat
+ * du formulaire des détails (action « maj ») après chaque enregistrement dans l'application.
  *
  * À installer une seule fois depuis le compte propriétaire du Google Sheet
  * (voir README, « Photos »). Le script tourne avec les droits de ce compte :
@@ -16,6 +17,10 @@ function doPost(e) {
     const secret = PropertiesService.getScriptProperties().getProperty('SECRET');
     if (!secret || req.secret !== secret) {
       return reponse({ ok: false, erreur: 'Accès refusé' });
+    }
+    if (req.action === 'maj') {          // appelé par l'application après chaque enregistrement
+      majListes();                        // (Formulaire.gs)
+      return reponse({ ok: true });
     }
     const contenu = Utilities.base64Decode(req.data);
     const fichier = dossier().createFile(Utilities.newBlob(contenu, 'image/jpeg', req.nom));
