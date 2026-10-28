@@ -56,6 +56,20 @@ def id_drive(lien: str) -> str:
     return (m.group(1) or m.group(2)) if m else ""
 
 
+def lire_drive(session, id_fichier: str) -> bytes:
+    """Lit une photo par l'API Drive avec le compte de service (dossier des photos partagé avec lui).
+
+    `session` : une google.auth.transport.requests.AuthorizedSession (portée drive.readonly).
+    """
+    rep = session.get(f"https://www.googleapis.com/drive/v3/files/{id_fichier}",
+                      params={"alt": "media"}, timeout=60)
+    if rep.status_code in (403, 404):
+        raise RuntimeError("Photo inaccessible au compte de service : partager avec lui le dossier "
+                           "« eAriary - Photos enrôlement » (lecteur).")
+    rep.raise_for_status()
+    return rep.content
+
+
 def telecharger(url: str, secret: str, id_fichier: str, post=requests.post) -> bytes:
     """Récupère une photo par le script Google (les photos restent privées dans le Drive)."""
     rep = post(url, json={"secret": secret, "action": "photo", "id": id_fichier}, timeout=60)

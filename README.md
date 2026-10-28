@@ -139,17 +139,18 @@ sur un point ou une ligne du tableau. Les marchands sans position GPS restent da
   principal `carte.py`, avec les mêmes secrets. Limiter l'accès (*Settings > Sharing*) aux
   personnes autorisées : la carte montre les téléphones des marchands.
 
-Les photos restent privées dans le Drive : la carte les lit par le script Google (action `photo`,
-limitée au dossier des photos). Après la mise à jour de `apps_script/Code.gs`, publier une
-**nouvelle version** du déploiement (étape 2 bis, point 5) ; d'ici là, la fiche affiche un lien
-Drive à la place de chaque photo.
+Les photos restent privées dans le Drive. Pour que la carte les affiche, **partager le dossier
+`eAriary - Photos enrôlement` en lecteur avec l'adresse du compte de service** (`client_email`
+des secrets) : la carte les lit alors par l'API Drive. À défaut, elle passe par le script Google
+(action `photo` de `apps_script/Code.gs`, après publication d'une nouvelle version), et en dernier
+recours affiche un lien Drive à la place de chaque photo.
 
 ### Lancer en local (tests)
 
 ```bash
 pip install -r requirements-dev.txt
 streamlit run app.py          # http://localhost:8501 (la géolocalisation marche sur localhost)
-python -m pytest -q tests     # 34 tests, sans connexion à Google
+python -m pytest -q tests     # 35 tests, sans connexion à Google
 ```
 
 ## Côté agent

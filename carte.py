@@ -16,13 +16,15 @@ from folium.plugins import MarkerCluster
 import gspread
 import pandas as pd
 import streamlit as st
+from google.auth.transport.requests import AuthorizedSession
 from google.oauth2.service_account import Credentials
 from streamlit_folium import st_folium
 
 import photos
 import sheets
 
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets",
+          "https://www.googleapis.com/auth/drive.readonly"]   # lecture des photos
 LOGO = Path(__file__).parent / "assets" / "logo-eariary.png"
 
 # Couleurs du logo
@@ -79,9 +81,13 @@ st.markdown(f"""
 # ------------------------------------------------------------ données
 
 @st.cache_resource
+def identifiants() -> Credentials:
+    return Credentials.from_service_account_info(dict(st.secrets["gcp_service_account"]), scopes=SCOPES)
+
+
+@st.cache_resource
 def classeur():
-    creds = Credentials.from_service_account_info(dict(st.secrets["gcp_service_account"]), scopes=SCOPES)
-    return gspread.authorize(creds).open_by_key(st.secrets["sheet_id"])
+    return gspread.authorize(identifiants()).open_by_key(st.secrets["sheet_id"])
 
 
 @st.cache_data(ttl=120, show_spinner="Lecture du Google Sheet…")
@@ -92,9 +98,15 @@ def marchands() -> pd.DataFrame:
     return df
 
 
-@st.cache_data(ttl=24 * 3600, show_spinner=False)
+@st.cache_data(ttl=24 * 3600, show_spinner="Chargement de la photo…")
 def photo(id_fichier: str) -> bytes:
-    return photos.telecharger(st.secrets["photos_url"], st.secrets["photos_secret"], id_fichier)
+    """Par l'API Drive (dossier partagé avec le compte de service), sinon par le script Google."""
+    try:
+        return photos.lire_drive(AuthorizedSession(identifiants()), id_fichier)
+    except Exception:
+        if "photos_url" not in st.secrets:
+            raise
+        return photos.telecharger(st.secrets["photos_url"], st.secrets["photos_secret"], id_fichier)
 
 
 def logo_html() -> str:

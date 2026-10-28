@@ -432,3 +432,13 @@ def test_telecharger_photo():
     rep.json.return_value = {"ok": False, "erreur": "Fichier hors du dossier des photos"}
     with pytest.raises(RuntimeError, match="hors du dossier"):
         photos.telecharger("https://script", "s3cret", "ID", post=post)
+
+
+def test_lire_photo_par_drive():
+    session = mock.Mock()
+    session.get.return_value = mock.Mock(status_code=200, content=b"jpeg")
+    assert photos.lire_drive(session, "ID") == b"jpeg"
+    assert session.get.call_args.kwargs["params"] == {"alt": "media"}
+    session.get.return_value = mock.Mock(status_code=404)
+    with pytest.raises(RuntimeError, match="partager"):
+        photos.lire_drive(session, "ID")
