@@ -69,6 +69,18 @@ st.markdown(f"""
   .fiche td {{ padding: .28rem 0; border-bottom: 1px solid #edf1f2; vertical-align: top; }}
   .fiche td:first-child {{ color: #5b6b70; width: 38%; }}
   .fiche a {{ color: {BLEU}; font-weight: 600; text-decoration: none; }}
+  .photos {{ display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin: -.2rem 0 .9rem; }}
+  .photos.n1 {{ grid-template-columns: 1fr; }}
+  .photos figure {{ margin: 0; position: relative; }}
+  .photos img {{ width: 100%; height: 210px; object-fit: cover; border-radius: 10px; display: block; }}
+  .photos.n1 img {{ height: 260px; }}
+  .photos figcaption {{ position: absolute; left: .4rem; bottom: .4rem; background: rgba(13,86,100,.85);
+                        color: #fff; font-size: .75rem; padding: .1rem .5rem; border-radius: 999px; }}
+  .photos figure.sans {{ display: flex; align-items: center; justify-content: center; height: 210px;
+                         background: {FOND}; border-radius: 10px; font-size: .85rem; text-align: center; }}
+  .photos-vide {{ height: 90px; display: flex; align-items: center; justify-content: center;
+                  background: {FOND}; border-radius: 10px; color: #5b6b70; font-size: .85rem;
+                  margin-bottom: .9rem; }}
   .vide {{ background: #fff; border-radius: 14px; padding: 2rem 1.2rem; text-align: center;
            color: #5b6b70; border: 2px dashed #c9dadd; }}
   .legende {{ font-size: .85rem; color: #5b6b70; margin-top: .3rem; }}
@@ -260,19 +272,23 @@ with col_fiche:
         corps = "".join(f"<tr><td>{k}</td><td>{v if k == 'Position' else escape(str(v)) or '–'}</td></tr>"
                         for k, v in lignes)
         badge = f'<div class="badge">{escape(m["categorie"])}</div>' if m["categorie"] else ""
-        st.markdown(f'<div class="fiche"><h3>{escape(m["nom"])}</h3>{badge}<table>{corps}</table></div>',
-                    unsafe_allow_html=True)
 
-        st.write("")
-        st.markdown("#### Photos")
-        liens = [(t, l) for t, l in (("Devanture", m["photo_devanture"]), ("Produits", m["photo_produits"])) if l]
-        if not liens:
-            st.caption("Pas de photo pour ce marchand.")
-        for titre, lien in liens:
+        # Photos en tête de fiche, côte à côte et de même hauteur
+        vignettes = []
+        for titre, lien in (("Devanture", m["photo_devanture"]), ("Produits", m["photo_produits"])):
+            if not lien:
+                continue
             try:
-                st.image(photo(photos.id_drive(lien)), caption=titre, width="stretch")
+                img = base64.b64encode(photo(photos.id_drive(lien))).decode()
+                vignettes.append(f'<figure><img src="data:image/jpeg;base64,{img}" alt="{titre}">'
+                                 f'<figcaption>{titre}</figcaption></figure>')
             except Exception:
-                st.markdown(f"[{titre} : voir dans Google Drive]({lien})")
+                vignettes.append(f'<figure class="sans"><a href="{escape(lien)}" target="_blank">'
+                                 f'{titre} : voir dans Google Drive</a></figure>')
+        galerie = (f'<div class="photos n{len(vignettes)}">{"".join(vignettes)}</div>' if vignettes
+                   else '<div class="photos-vide">Pas de photo pour ce marchand</div>')
+        st.markdown(f'<div class="fiche">{galerie}<h3>{escape(m["nom"])}</h3>{badge}<table>{corps}</table></div>',
+                    unsafe_allow_html=True)
 
 st.markdown("### Liste des marchands")
 tableau = df.sort_values("date_acceptation", ascending=False, na_position="last").reset_index(drop=True)
