@@ -6,10 +6,11 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 
 JOURNAL = "Journal"
 LISTES = "Listes"
+MARCHANDS = "Marchands"
 ORIGINE = "Streamlit"
 
 # Colonnes A à O du Journal (P est calculée par formule : on n'y écrit jamais)
@@ -33,6 +34,23 @@ class Listes:
     categories: list[str] = field(default_factory=list)
     villes: list[str] = field(default_factory=list)
     resultats: list[str] = field(default_factory=list)
+
+
+@dataclass
+class Marchand:
+    """Un marchand accepté, vu par la carte (onglet Marchands + photos du Journal)."""
+    id: str
+    nom: str
+    categorie: str = ""
+    ville: str = ""
+    telephone: str = ""
+    agent: str = ""
+    canal: str = ""
+    date_acceptation: date | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    photo_devanture: str = ""     # lien Google Drive
+    photo_produits: str = ""
 
 
 @dataclass
@@ -202,3 +220,61 @@ def ajouter(classeur, saisie: Saisie, tentatives: int = 3) -> int:
                                value_input_option="USER_ENTERED")
             return n
     raise RuntimeError("Écriture non confirmée après plusieurs tentatives, réessayez.")
+
+
+# --------------------------------------------------------------- carte
+
+def _nombre(texte) -> float | None:
+    """« -18,901233 » (locale fr_FR) ou « -18.901233 » -> float, sinon None."""
+    try:
+        return float(str(texte).strip().replace(",", "."))
+    except ValueError:
+        return None
+
+
+def _date(texte) -> date | None:
+    try:
+        return datetime.strptime(str(texte).strip(), "%d/%m/%Y").date()
+    except ValueError:
+        return None
+
+
+def _par_entete(valeurs: list[list[str]]) -> list[dict[str, str]]:
+    """Lignes sous forme {en-tête: valeur} ; les en-têtes sont débarrassés des espaces."""
+    if not valeurs:
+        return []
+    entete = [str(h).strip() for h in valeurs[0]]
+    return [{h: str(l[i]).strip() if i < len(l) else "" for i, h in enumerate(entete)}
+            for l in valeurs[1:]]
+
+
+def lire_carte(classeur) -> list[Marchand]:
+    """Marchands au statut final « Accepté » (onglet Marchands), avec leurs photos.
+
+    Les photos ne sont que dans le Journal : on garde, par marchand, le dernier lien
+    non vide de chaque type. Les marchands sans position ont latitude/longitude à None.
+    """
+    photos: dict[str, list[str]] = {}
+    for l in _par_entete(classeur.worksheet(JOURNAL).get_all_values()):
+        cle = l.get("ID marchand") or identifiant(l.get("Marchand", ""), l.get("Ville", ""))
+        p = photos.setdefault(cle, ["", ""])
+        for i, col in enumerate(COLONNES_PHOTOS):
+            if l.get(col):
+                p[i] = l[col]
+
+    marchands = []
+    for l in _par_entete(classeur.worksheet(MARCHANDS).get_all_values()):
+        if l.get("Statut final") != "Accepté" or not l.get("Marchand"):
+            continue
+        cle = l.get("ID marchand") or identifiant(l["Marchand"], l.get("Ville", ""))
+        lat, lon = _nombre(l.get("Latitude", "")), _nombre(l.get("Longitude", ""))
+        if not position_plausible(lat, lon):
+            lat = lon = None
+        devanture, produits = photos.get(cle, ["", ""])
+        marchands.append(Marchand(
+            id=cle, nom=l["Marchand"], categorie=l.get("Catégorie", ""), ville=l.get("Ville", ""),
+            telephone=l.get("Téléphone", ""), agent=l.get("Agent crédité", ""),
+            canal=l.get("Canal", ""), date_acceptation=_date(l.get("Date d'acceptation", "")),
+            latitude=lat, longitude=lon, photo_devanture=devanture, photo_produits=produits,
+        ))
+    return marchands

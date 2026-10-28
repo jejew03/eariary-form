@@ -97,6 +97,19 @@ une fois, puis *Déployer > Gérer les déploiements > Modifier > Version : Nouv
 
 Pas besoin de redéployer l'application web des photos : elle n'est pas concernée.
 
+### 2 quater. Suivi des modifications du Journal
+
+`apps_script/Modifications.gs` surveille les modifications faites à la main dans le Journal :
+
+- un ancien contact (Refusé, À relancer, Injoignable… d'un jour précédent) passé à **Accepté** :
+  l'ancienne ligne garde son résultat et une nouvelle ligne **datée du jour** est ajoutée
+  (origine `Modification`). L'enrôlement compte le jour où il a eu lieu, pas à l'ancienne date ;
+- le **nom du marchand remplacé** sur une ligne d'un jour précédent : le nom d'origine est remis
+  et un message demande d'ajouter le nouveau marchand sur une nouvelle ligne.
+
+Les lignes du jour se modifient librement. Installation : ajouter le fichier au projet
+`eAriary photos`, puis exécuter `installerSuiviModifications` une fois.
+
 ### 3. Renseigner les secrets
 
 Copier `.streamlit/secrets.toml.example` en `.streamlit/secrets.toml` et recopier les valeurs
@@ -115,12 +128,28 @@ HTTPS, pas un simple `http://adresse-ip:8501`.
 Pour restreindre l'accès : *Settings > Sharing* de l'application Streamlit, inviter les adresses
 email des agents.
 
+### 5. Carte des marchands onboardés (`carte.py`)
+
+Carte de tous les marchands au statut final « Accepté » (onglet Marchands), aux couleurs du logo :
+filtres par ville, catégorie, agent, canal et période, fiche du marchand avec ses photos au clic
+sur un point ou une ligne du tableau. Les marchands sans position GPS restent dans le tableau.
+
+- En local : `streamlit run carte.py`.
+- En ligne : sur https://share.streamlit.io, une deuxième application sur le même dépôt, fichier
+  principal `carte.py`, avec les mêmes secrets. Limiter l'accès (*Settings > Sharing*) aux
+  personnes autorisées : la carte montre les téléphones des marchands.
+
+Les photos restent privées dans le Drive : la carte les lit par le script Google (action `photo`,
+limitée au dossier des photos). Après la mise à jour de `apps_script/Code.gs`, publier une
+**nouvelle version** du déploiement (étape 2 bis, point 5) ; d'ici là, la fiche affiche un lien
+Drive à la place de chaque photo.
+
 ### Lancer en local (tests)
 
 ```bash
 pip install -r requirements-dev.txt
 streamlit run app.py          # http://localhost:8501 (la géolocalisation marche sur localhost)
-python -m pytest -q tests     # 27 tests, sans connexion à Google
+python -m pytest -q tests     # 34 tests, sans connexion à Google
 ```
 
 ## Côté agent
@@ -136,10 +165,13 @@ Autorisations > Position > Autoriser, puis recharger la page.
 
 | Fichier | Rôle |
 |---|---|
-| `app.py` | Interface Streamlit |
+| `app.py` | Interface Streamlit (formulaire des agents) |
+| `carte.py` | Carte des marchands onboardés, avec leurs photos |
+| `assets/logo-eariary.png` | Logo eAriary (recadré) |
 | `sheets.py` | Lecture des listes, contrôles, écriture dans le Journal |
 | `photos.py` | Compression des photos et envoi au script Google |
-| `apps_script/Code.gs` | Script Google qui range les photos dans le Drive du propriétaire |
+| `apps_script/Code.gs` | Script Google qui range les photos dans le Drive du propriétaire et les relit pour la carte |
 | `apps_script/Formulaire.gs` | Formulaire Google pour compléter les détails des marchands |
+| `apps_script/Modifications.gs` | Date du jour pour un ancien contact passé à « Accepté », anciennes lignes protégées |
 | `tests/test_app.py` | Tests sur un faux Google Sheet (écriture, doublons, GPS, interface) |
 | `.streamlit/secrets.toml.example` | Modèle des secrets |

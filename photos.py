@@ -50,6 +50,25 @@ def rafraichir_formulaire(url: str, secret: str, post=requests.post) -> bool:
         return False
 
 
+def id_drive(lien: str) -> str:
+    """Identifiant du fichier dans un lien Drive (…/file/d/<id>/view ou …?id=<id>), sinon ''."""
+    m = re.search(r"/d/([\w-]{20,})|[?&]id=([\w-]{20,})", lien or "")
+    return (m.group(1) or m.group(2)) if m else ""
+
+
+def telecharger(url: str, secret: str, id_fichier: str, post=requests.post) -> bytes:
+    """Récupère une photo par le script Google (les photos restent privées dans le Drive)."""
+    rep = post(url, json={"secret": secret, "action": "photo", "id": id_fichier}, timeout=60)
+    rep.raise_for_status()
+    try:
+        res = rep.json()
+    except ValueError:
+        raise RuntimeError("Le script photos ne répond pas correctement (vérifiez sa publication).")
+    if not res.get("ok"):
+        raise RuntimeError(f"Le script photos a refusé la lecture : {res.get('erreur')}")
+    return base64.b64decode(res["data"])
+
+
 def envoyer(url: str, secret: str, nom: str, contenu: bytes, post=requests.post) -> str:
     """Envoie un JPEG au script Google et renvoie le lien Drive de la photo."""
     rep = post(url, json={"secret": secret, "nom": nom, "data": base64.b64encode(contenu).decode()},

@@ -1,6 +1,7 @@
 /**
- * Réception des photos de l'application d'enrôlement eAriary, et rechargement immédiat
- * du formulaire des détails (action « maj ») après chaque enregistrement dans l'application.
+ * Réception des photos de l'application d'enrôlement eAriary, rechargement immédiat
+ * du formulaire des détails (action « maj ») après chaque enregistrement dans l'application,
+ * et lecture des photos pour la carte des marchands (action « photo »).
  *
  * À installer une seule fois depuis le compte propriétaire du Google Sheet
  * (voir README, « Photos »). Le script tourne avec les droits de ce compte :
@@ -21,6 +22,14 @@ function doPost(e) {
     if (req.action === 'maj') {          // appelé par l'application après chaque enregistrement
       majListes();                        // (Formulaire.gs)
       return reponse({ ok: true });
+    }
+    if (req.action === 'photo') {        // appelé par la carte des marchands (carte.py)
+      const fichier = DriveApp.getFileById(req.id);
+      // Seules les photos du dossier d'enrôlement sont lisibles par ce biais
+      if (!fichier.getParents().hasNext() || fichier.getParents().next().getName() !== DOSSIER) {
+        return reponse({ ok: false, erreur: 'Fichier hors du dossier des photos' });
+      }
+      return reponse({ ok: true, data: Utilities.base64Encode(fichier.getBlob().getBytes()) });
     }
     const contenu = Utilities.base64Decode(req.data);
     const fichier = dossier().createFile(Utilities.newBlob(contenu, 'image/jpeg', req.nom));

@@ -381,3 +381,54 @@ def test_app_refuse_sans_nom(app, classeur):
     _par_label(at.button, "Enregistrer").click().run()
     assert any("nom du marchand" in e.value for e in at.error)
     assert len(classeur.worksheet("Journal").ecritures) == 0
+
+
+# ------------------------------------------------------------ carte des marchands
+
+MARCHANDS = [
+    ["ID marchand", "Marchand", "Catégorie", "Ville", "Téléphone", "Statut final",
+     "Date d'acceptation", "Agent crédité", "Canal", "Latitude", "Longitude"],
+    ["boutique soa | antananarivo", "Boutique Soa", "Épicerie", "Antananarivo", "+261 34 11 111 11",
+     "Accepté", "30/09/2026", "Aina", "Descente", "-18,901233", "47,521251"],
+    ["pharmacie zo | antsirabe", "Pharmacie Zo", "Pharmacie", "Antsirabe", "", "À relancer",
+     "", "Miharintsoa", "Appel", "", ""],
+    ["chez rado | paris", "Chez Rado", "Restaurant", "Paris", "", "Accepté", "", "Aina", "Appel",
+     "48,85", "2,35"],
+]
+
+
+def test_lire_carte_acceptes_positions_et_photos():
+    journal = journal_exemple()
+    journal[0] = [" Date"] + journal[0][1:] + sheets.COLONNES_PHOTOS
+    journal[1] = journal[1] + ["https://drive.google.com/file/d/AAA/view", ""]
+    journal.append(["02/10/2026", "Aina", "Descente", "Boutique Soa", "", "Antananarivo", "", "", "",
+                    "Accepté", "", "", "", "", "Streamlit", "boutique soa | antananarivo",
+                    "", "https://drive.google.com/file/d/BBB/view"])
+    c = FauxClasseur({"Journal": FausseFeuille(journal), "Marchands": FausseFeuille(MARCHANDS)})
+    soa, rado = sheets.lire_carte(c)
+    assert (soa.nom, soa.latitude, soa.longitude) == ("Boutique Soa", -18.901233, 47.521251)
+    assert soa.date_acceptation == date(2026, 9, 30)
+    assert soa.photo_devanture.endswith("AAA/view") and soa.photo_produits.endswith("BBB/view")
+    assert rado.latitude is None and rado.longitude is None   # hors de Madagascar
+    assert rado.photo_devanture == ""
+
+
+@pytest.mark.parametrize("lien,attendu", [
+    ("https://drive.google.com/file/d/1AbCdEfGhIjKlMnOpQrStUvWxYz/view?usp=drivesdk",
+     "1AbCdEfGhIjKlMnOpQrStUvWxYz"),
+    ("https://drive.google.com/open?id=1AbCdEfGhIjKlMnOpQrStUvWxYz", "1AbCdEfGhIjKlMnOpQrStUvWxYz"),
+    ("pas un lien", ""),
+])
+def test_id_drive(lien, attendu):
+    assert photos.id_drive(lien) == attendu
+
+
+def test_telecharger_photo():
+    rep = mock.Mock(status_code=200)
+    rep.json.return_value = {"ok": True, "data": "aGVsbG8="}
+    post = mock.Mock(return_value=rep)
+    assert photos.telecharger("https://script", "s3cret", "ID", post=post) == b"hello"
+    assert post.call_args.kwargs["json"] == {"secret": "s3cret", "action": "photo", "id": "ID"}
+    rep.json.return_value = {"ok": False, "erreur": "Fichier hors du dossier des photos"}
+    with pytest.raises(RuntimeError, match="hors du dossier"):
+        photos.telecharger("https://script", "s3cret", "ID", post=post)
