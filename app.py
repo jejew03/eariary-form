@@ -245,6 +245,6 @@ if agent:
         lignes = []
     st.subheader(f"Mes saisies du jour : {len(lignes)} marchand(s)")
     if lignes:
-        st.dataframe(pd.DataFrame([[l[3], l[12], l[13]] for l in lignes][::-1],
+        st.dataframe(pd.DataFrame([[l[3], l[13], l[14]] for l in lignes][::-1],
                                   columns=["Marchand", "Latitude", "Longitude"]),
                      hide_index=True, width="stretch")

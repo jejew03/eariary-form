@@ -43,7 +43,7 @@ class FausseFeuille:
         return vals
 
     def get(self, rng):
-        # "A2:P" ou "A10:O10"
+        # "A2:Q" ou "A10:P10"
         debut, fin = rng.split(":")
         r1 = int("".join(ch for ch in debut if ch.isdigit()))
         r2 = "".join(ch for ch in fin if ch.isdigit())
@@ -55,10 +55,10 @@ class FausseFeuille:
     def update(self, range_name, values, value_input_option):
         assert value_input_option == "USER_ENTERED"
         r = int("".join(ch for ch in range_name.split(":")[0] if ch.isdigit()))
-        assert range_name in (f"A{r}:O{r}", f"Q{r}:R{r}"), "on n'écrit jamais dans la colonne P"
+        assert range_name in (f"A{r}:P{r}", f"R{r}:S{r}"), "on n'écrit jamais dans la colonne Q"
         while len(self.valeurs) < r:
             self.valeurs.append([])
-        ligne = (self.valeurs[r - 1] + [""] * 18)[:18]
+        ligne = (self.valeurs[r - 1] + [""] * 19)[:19]
         debut = ord(range_name[0]) - ord("A")
         for i, v in enumerate(values[0]):
             v = str(v)
@@ -91,12 +91,12 @@ def journal_exemple():
     return [
         ENTETE,
         ["30/09/2026", "Aina", "Descente", "Boutique Soa", "Épicerie", "Antananarivo",
-         "+261 34 11 111 11", "", "", "Accepté", "", "", "-18.9", "47.5", "Formulaire",
+         "+261 34 11 111 11", "", "", "Accepté", "Déjà saisi", "", "", "-18.9", "47.5", "Formulaire",
          "boutique soa | antananarivo"],
         [],                       # trou au milieu du Journal (comme les lignes 277-278)
         [],
         ["01/10/2026", "Miharintsoa", "Appel", "Pharmacie Zo", "Pharmacie", "Antsirabe",
-         "+261 33 22 222 22", "", "", "À relancer", "", "", "", "", "Historique",
+         "+261 33 22 222 22", "", "", "À relancer", "", "", "", "", "", "Historique",
          "pharmacie zo | antsirabe"],
     ]
 
@@ -177,24 +177,24 @@ def test_ecriture_apres_le_trou(classeur):
     feuille = classeur.worksheet("Journal")
     assert n == 6, "doit écrire après la dernière ligne remplie, pas dans le trou"
     ligne = feuille.valeurs[n - 1]
-    assert ligne[:12] == ["07/10/2026", "Aina", "Descente", "Épicerie Fanja", "Épicerie",
+    assert ligne[:13] == ["07/10/2026", "Aina", "Descente", "Épicerie Fanja", "Épicerie",
                           "Antananarivo", "+261 34 12 345 67", "", "a@b.mg", "À relancer",
-                          "09/10/2026", "Rappeler vendredi"]
-    assert ligne[12:15] == ["-18.907597", "47.525359", "Streamlit"]
-    assert ligne[15] == "", "la colonne P (formule) n'est jamais touchée"
+                          "", "09/10/2026", "Rappeler vendredi"]
+    assert ligne[13:16] == ["-18.907597", "47.525359", "Streamlit"]
+    assert ligne[16] == "", "la colonne Q (formule) n'est jamais touchée"
     # l'apostrophe garde le téléphone en texte côté Google Sheets
     assert feuille.ecritures[0][1][6] == "'+261 34 12 345 67"
 
 
 def test_ecriture_sans_gps(classeur):
     n = sheets.ajouter(classeur, saisie(canal="Appel", latitude=None, longitude=None))
-    assert classeur.worksheet("Journal").valeurs[n - 1][12:14] == ["", ""]
+    assert classeur.worksheet("Journal").valeurs[n - 1][13:15] == ["", ""]
 
 
 def test_ecriture_liens_photos(classeur):
     n = sheets.ajouter(classeur, saisie(photo_devanture="https://drive/d", photo_produits="https://drive/p"))
     feuille = classeur.worksheet("Journal")
-    assert feuille.valeurs[n - 1][15:18] == ["", "https://drive/d", "https://drive/p"]
+    assert feuille.valeurs[n - 1][16:19] == ["", "https://drive/d", "https://drive/p"]
     assert [r for r, _ in feuille.ecritures] == [n, n]
 
 
@@ -358,8 +358,9 @@ def test_app_enregistre_nom_et_position(app, classeur):
     assert ligne[1:4] == ["Aina", "Descente", "Épicerie Fanja"]
     assert ligne[4:9] == [""] * 5, "catégorie, ville, téléphone, contact, email laissés vides"
     assert ligne[9] == "Accepté", "compté comme enrôlé dans le tableau de bord"
-    assert ligne[10:12] == ["", ""]
-    assert ligne[12:15] == ["-18.907597", "47.525359", "Streamlit"]
+    assert ligne[10] == "À saisir", "marchand accepté pas encore saisi sur le site de BFM"
+    assert ligne[11:13] == ["", ""]
+    assert ligne[13:16] == ["-18.907597", "47.525359", "Streamlit"]
     assert any("enregistré" in s.value for s in at.success)
     # formulaire vidé après l'enregistrement
     assert _par_label(at.text_input, "Nom du marchand").value == ""
@@ -402,7 +403,7 @@ def test_lire_carte_acceptes_positions_et_photos():
     journal[0] = [" Date"] + journal[0][1:] + sheets.COLONNES_PHOTOS
     journal[1] = journal[1] + ["https://drive.google.com/file/d/AAA/view", ""]
     journal.append(["02/10/2026", "Aina", "Descente", "Boutique Soa", "", "Antananarivo", "", "", "",
-                    "Accepté", "", "", "", "", "Streamlit", "boutique soa | antananarivo",
+                    "Accepté", "À saisir", "", "", "", "", "Streamlit", "boutique soa | antananarivo",
                     "", "https://drive.google.com/file/d/BBB/view"])
     c = FauxClasseur({"Journal": FausseFeuille(journal), "Marchands": FausseFeuille(MARCHANDS)})
     soa, rado = sheets.lire_carte(c)

@@ -18,13 +18,15 @@ des photos ; les autres colonnes (catégorie, ville, téléphone…) restent vid
   de copie (`-18.907597, 47.525359`, format accepté par Google Maps).
 - **Photos** : une photo de la devanture et une photo des produits, prises avec l'appareil photo
   du téléphone (ou choisies dans la galerie). Elles sont redressées, réduites à 1600 px, envoyées
-  dans un dossier Google Drive, et leurs liens sont écrits en colonnes Q et R du Journal.
+  dans un dossier Google Drive, et leurs liens sont écrits en colonnes R et S du Journal.
 - **Liste des agents** lue dans l'onglet Listes du Sheet. Ajouter un agent dans le Sheet suffit :
   l'application le reprend sous 10 minutes.
 - **Contrôles avant écriture** : nom du marchand et position obligatoires ; photos facultatives.
-- **Écriture sûre** : colonnes A à O et Q à R (jamais la colonne P calculée), après la dernière
+- **Écriture sûre** : colonnes A à P et R à S (jamais la colonne Q calculée), après la dernière
   ligne remplie (même s'il y a des lignes vides au milieu), avec relecture pour éviter que deux
   agents écrasent la même ligne. Colonne Origine = `Streamlit`.
+- **Saisie BFM** (colonne K du Journal) : `À saisir` pour un marchand accepté, à passer à
+  `Déjà saisi` une fois le marchand créé sur le site de BFM.
 - **Récapitulatif du jour** de l'agent en bas de page.
 - L'agent choisi est gardé dans l'adresse (`?agent=Aina`) : chaque agent peut enregistrer
   son propre lien en favori sur son téléphone.

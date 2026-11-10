@@ -12,14 +12,17 @@ JOURNAL = "Journal"
 LISTES = "Listes"
 MARCHANDS = "Marchands"
 ORIGINE = "Streamlit"
+# Colonne K : marchand accepté déjà saisi ou non sur le site de BFM
+BFM_DEJA_SAISI = "Déjà saisi"
+BFM_A_SAISIR = "À saisir"
 
-# Colonnes A à O du Journal (P est calculée par formule : on n'y écrit jamais)
+# Colonnes A à P du Journal (Q est calculée par formule : on n'y écrit jamais)
 COLONNES = [
     "Date", "Agent", "Canal", "Marchand", "Catégorie", "Ville", "Téléphone",
-    "Responsable / contact", "Email", "Résultat", "Date de rappel",
+    "Responsable / contact", "Email", "Résultat", "Saisie BFM", "Date de rappel",
     "Commentaire", "Latitude", "Longitude", "Origine",
 ]
-# Colonnes Q et R : liens Drive des photos (après la colonne P calculée)
+# Colonnes R et S : liens Drive des photos (après la colonne Q calculée)
 COLONNES_PHOTOS = ["Photo devanture", "Photo produits"]
 
 # Emprise de Madagascar, pour détecter une position aberrante
@@ -73,11 +76,11 @@ class Saisie:
     photo_produits: str = ""
 
     def identifiant(self) -> str:
-        """Même clé que la colonne P du Journal : « marchand | ville » en minuscules."""
+        """Même clé que la colonne Q du Journal : « marchand | ville » en minuscules."""
         return identifiant(self.marchand, self.ville)
 
     def en_ligne(self) -> list:
-        """Ligne A:O prête pour l'API (saisie USER_ENTERED, locale fr_FR)."""
+        """Ligne A:P prête pour l'API (saisie USER_ENTERED, locale fr_FR)."""
         tel = normaliser_telephone(self.telephone)
         return [
             self.date.strftime("%d/%m/%Y"),
@@ -90,6 +93,7 @@ class Saisie:
             self.responsable.strip(),
             self.email.strip(),
             self.resultat,
+            BFM_A_SAISIR if self.resultat == "Accepté" else "",
             self.date_rappel.strftime("%d/%m/%Y") if self.date_rappel else "",
             self.commentaire.strip(),
             round(self.latitude, 6) if self.latitude is not None else "",
@@ -167,9 +171,9 @@ def lire_listes(classeur) -> Listes:
 
 
 def lire_journal(classeur) -> list[list[str]]:
-    """Lignes de données A:P (sans l'en-tête), complétées à 16 colonnes."""
-    valeurs = classeur.worksheet(JOURNAL).get("A2:P")
-    return [(list(l) + [""] * 16)[:16] for l in valeurs if len(l) > 3 and str(l[3]).strip()]
+    """Lignes de données A:Q (sans l'en-tête), complétées à 17 colonnes."""
+    valeurs = classeur.worksheet(JOURNAL).get("A2:Q")
+    return [(list(l) + [""] * 17)[:17] for l in valeurs if len(l) > 3 and str(l[3]).strip()]
 
 
 def doublons(journal: list[list[str]], saisie: Saisie) -> list[list[str]]:
@@ -202,20 +206,20 @@ def _premiere_ligne_libre(feuille) -> int:
 
 
 def ajouter(classeur, saisie: Saisie, tentatives: int = 3) -> int:
-    """Écrit la saisie dans le Journal (A:O, puis Q:R pour les photos) et renvoie le numéro de ligne."""
+    """Écrit la saisie dans le Journal (A:P, puis R:S pour les photos) et renvoie le numéro de ligne."""
     feuille = classeur.worksheet(JOURNAL)
     ligne = saisie.en_ligne()
     for _ in range(tentatives):
         n = _premiere_ligne_libre(feuille)
         if n > feuille.row_count:
             feuille.add_rows(200)
-        feuille.update(range_name=f"A{n}:O{n}", values=[ligne], value_input_option="USER_ENTERED")
+        feuille.update(range_name=f"A{n}:P{n}", values=[ligne], value_input_option="USER_ENTERED")
         # Contrôle anti-collision : deux agents peuvent viser la même ligne
-        relu = feuille.get(f"A{n}:O{n}")
-        relu = (relu[0] if relu else []) + [""] * 15
+        relu = feuille.get(f"A{n}:P{n}")
+        relu = (relu[0] if relu else []) + [""] * 16
         if relu[1] == saisie.agent and relu[3].strip() == saisie.marchand.strip():
             if saisie.photo_devanture or saisie.photo_produits:
-                feuille.update(range_name=f"Q{n}:R{n}",
+                feuille.update(range_name=f"R{n}:S{n}",
                                values=[[saisie.photo_devanture, saisie.photo_produits]],
                                value_input_option="USER_ENTERED")
             return n

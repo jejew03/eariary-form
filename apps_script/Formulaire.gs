@@ -27,7 +27,7 @@ const Q = {
 };
 // Colonnes du Journal (1 = A)
 const COL = { date: 1, agent: 2, marchand: 4, categorie: 5, ville: 6, telephone: 7,
-              responsable: 8, email: 9, commentaire: 12, origine: 15 };
+              responsable: 8, email: 9, commentaire: 13, origine: 16 };
 
 /** À exécuter une seule fois : crée le formulaire et ses déclencheurs. */
 function creerFormulaire() {

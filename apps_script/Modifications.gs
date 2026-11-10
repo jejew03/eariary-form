@@ -12,7 +12,8 @@
  * créée pour Formulaire.gs), puis exécuter installerSuiviModifications() une fois.
  */
 const COL_RESULTAT = 10;   // J
-const COL_RAPPEL = 11;     // K
+const COL_BFM = 11;        // K : saisie sur le site de BFM
+const COL_RAPPEL = 12;     // L
 const ACCEPTE = 'Accepté';
 const ORIGINE_MODIF = 'Modification';
 
@@ -50,6 +51,7 @@ function surModification(e) {
     copie[COL.date - 1] = aujourdhui();
     copie[COL_RESULTAT - 1] = ACCEPTE;
     copie[COL_RAPPEL - 1] = '';
+    copie[COL_BFM - 1] = 'À saisir';
     copie[COL.origine - 1] = ORIGINE_MODIF;
     const libre = ajouterLigne(feuille, copie);
     e.source.toast('Enrôlement compté aujourd\'hui : nouvelle ligne ' + libre
